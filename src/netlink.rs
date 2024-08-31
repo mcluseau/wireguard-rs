@@ -35,7 +35,7 @@ use crate::{IpVersion, Key, WireguardInterfaceError, host::Host, net::IpAddrMask
 const SOCKET_BUFFER_LENGTH: usize = 12288;
 
 #[derive(Debug, Error)]
-pub(crate) enum NetlinkError {
+pub enum NetlinkError {
     #[error("Unexpected netlink payload")]
     UnexpectedPayload,
     #[error("Failed to send netlink request")]
@@ -221,7 +221,7 @@ where
 
 /// Create WireGuard interface.
 /// Note: maximum 15 characters for `ifname`.
-pub(crate) fn create_interface(ifname: &str) -> NetlinkResult<()> {
+pub fn create_interface(ifname: &str) -> NetlinkResult<()> {
     let mut message = LinkMessage::default();
     message.header.flags = LinkFlags::Up;
     message.header.change_mask = LinkFlags::Up;
@@ -324,7 +324,7 @@ fn flush_addresses(index: u32) -> NetlinkResult<()> {
 }
 
 /// Remove IP addresses from a WireGuard network interface.
-pub(crate) fn flush_interface(ifname: &str) -> NetlinkResult<()> {
+pub fn flush_interface(ifname: &str) -> NetlinkResult<()> {
     if let Some(index) = get_interface_index(ifname)? {
         flush_addresses(index)
     } else {
@@ -333,7 +333,7 @@ pub(crate) fn flush_interface(ifname: &str) -> NetlinkResult<()> {
 }
 
 /// Set IP address of a WireGuard network interface.
-pub(crate) fn address_interface(ifname: &str, address: &IpAddrMask) -> NetlinkResult<()> {
+pub fn address_interface(ifname: &str, address: &IpAddrMask) -> NetlinkResult<()> {
     if let Some(index) = get_interface_index(ifname)? {
         set_address(index, address)
     } else {
@@ -342,7 +342,7 @@ pub(crate) fn address_interface(ifname: &str, address: &IpAddrMask) -> NetlinkRe
 }
 
 /// Delete WireGuard interface.
-pub(crate) fn delete_interface(ifname: &str) -> NetlinkResult<()> {
+pub fn delete_interface(ifname: &str) -> NetlinkResult<()> {
     let mut message = LinkMessage::default();
     message
         .attributes
@@ -366,7 +366,7 @@ pub(crate) fn delete_interface(ifname: &str) -> NetlinkResult<()> {
 }
 
 /// Read host interface data
-pub(crate) fn get_host(ifname: &str) -> NetlinkResult<Host> {
+pub fn get_host(ifname: &str) -> NetlinkResult<Host> {
     debug!("Reading Netlink data for interface {ifname}");
     let genlmsg = GenlMessage::from_payload(Wireguard {
         cmd: WireguardCmd::GetDevice,
@@ -391,7 +391,7 @@ pub(crate) fn get_host(ifname: &str) -> NetlinkResult<Host> {
 }
 
 /// Perform interface configuration
-pub(crate) fn set_host(ifname: &str, host: &Host) -> NetlinkResult<()> {
+pub fn set_host(ifname: &str, host: &Host) -> NetlinkResult<()> {
     let genlmsg = GenlMessage::from_payload(Wireguard {
         cmd: WireguardCmd::SetDevice,
         nlas: host.as_nlas(ifname),
@@ -406,7 +406,7 @@ pub(crate) fn set_host(ifname: &str, host: &Host) -> NetlinkResult<()> {
 }
 
 /// Save or update WireGuard peer configuration
-pub(crate) fn set_peer(ifname: &str, peer: &Peer) -> NetlinkResult<()> {
+pub fn set_peer(ifname: &str, peer: &Peer) -> NetlinkResult<()> {
     let genlmsg = GenlMessage::from_payload(Wireguard {
         cmd: WireguardCmd::SetDevice,
         nlas: peer.as_nlas(ifname),
@@ -416,7 +416,7 @@ pub(crate) fn set_peer(ifname: &str, peer: &Peer) -> NetlinkResult<()> {
 }
 
 /// Delete a WireGuard peer from interface
-pub(crate) fn delete_peer(ifname: &str, public_key: &Key) -> NetlinkResult<()> {
+pub fn delete_peer(ifname: &str, public_key: &Key) -> NetlinkResult<()> {
     let genlmsg = GenlMessage::from_payload(Wireguard {
         cmd: WireguardCmd::SetDevice,
         nlas: public_key.as_nlas_remove(ifname),
@@ -510,7 +510,7 @@ pub(crate) fn get_gateway(address_family: AddressFamily) -> NetlinkResult<Option
 }
 
 /// Add a route for an interface.
-pub(crate) fn add_route(
+pub fn add_route(
     ifname: &str,
     address: &IpAddrMask,
     table: Option<u32>,
@@ -604,7 +604,7 @@ pub(crate) fn count_routes(ip_version: IpVersion, table: u32) -> NetlinkResult<u
 }
 
 /// Add rule for fwmark.
-pub(crate) fn add_fwmark_rule(address: &IpAddrMask, fwmark: u32) -> NetlinkResult<()> {
+pub fn add_fwmark_rule(address: &IpAddrMask, fwmark: u32) -> NetlinkResult<()> {
     let mut message = RuleMessage::default();
     let rule_msg_hdr = RuleHeader {
         family: address.address_family(),
@@ -632,7 +632,7 @@ pub(crate) fn add_fwmark_rule(address: &IpAddrMask, fwmark: u32) -> NetlinkResul
 }
 
 /// Delete rule for fwmark.
-pub(crate) fn delete_rule(ip_version: IpVersion, fwmark: u32) -> NetlinkResult<()> {
+pub fn delete_rule(ip_version: IpVersion, fwmark: u32) -> NetlinkResult<()> {
     let mut message = RuleMessage::default();
     let rule_msg_hdr = RuleHeader {
         table: RouteHeader::RT_TABLE_UNSPEC,
@@ -659,7 +659,7 @@ pub(crate) fn delete_rule(ip_version: IpVersion, fwmark: u32) -> NetlinkResult<(
 }
 
 /// Add rule for main table.
-pub(crate) fn add_main_table_rule(
+pub fn add_main_table_rule(
     address: &IpAddrMask,
     suppress_prefix_len: u32,
 ) -> NetlinkResult<()> {
@@ -690,7 +690,7 @@ pub(crate) fn add_main_table_rule(
 }
 
 /// Delete rule for main table.
-pub(crate) fn delete_main_table_rule(
+pub fn delete_main_table_rule(
     ip_version: IpVersion,
     suppress_prefix_len: u32,
 ) -> NetlinkResult<()> {
@@ -721,7 +721,7 @@ pub(crate) fn delete_main_table_rule(
     }
 }
 
-pub(crate) fn set_mtu(if_name: &str, mtu: u32) -> NetlinkResult<()> {
+pub fn set_mtu(if_name: &str, mtu: u32) -> NetlinkResult<()> {
     if let Some(index) = get_interface_index(if_name)? {
         let mut message = LinkMessage::default();
         message.header.index = index;

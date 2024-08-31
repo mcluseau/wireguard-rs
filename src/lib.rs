@@ -58,7 +58,7 @@ pub mod host;
 pub mod key;
 pub mod net;
 #[cfg(target_os = "linux")]
-pub(crate) mod netlink;
+pub mod netlink;
 pub mod peer;
 mod utils;
 mod wgapi;
