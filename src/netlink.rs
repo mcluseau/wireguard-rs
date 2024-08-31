@@ -62,12 +62,16 @@ pub enum NetlinkError {
     FileAlreadyExists,
     #[error("Add route error")]
     AddRouteError,
+    #[error("Delete route error")]
+    DeleteRouteError,
     #[error("No such file")]
     NotFound,
     #[error("Failed to add rule")]
     AddRuleError,
     #[error("Failed to delete rule")]
     DeleteRuleError,
+    #[error("No such process")]
+    NoSuchProcessError,
 }
 
 impl From<NetlinkError> for WireguardInterfaceError {
@@ -205,11 +209,15 @@ where
                 NetlinkPayload::Error(msg) if msg.code.is_none() => return Ok(responses),
                 NetlinkPayload::Done(_) => return Ok(responses),
                 NetlinkPayload::Error(msg) => {
+                    match msg.code.map(|code| code.get()) {
+                        Some(-3) => return Err(NetlinkError::NoSuchProcessError),
+                        _ => {}
+                    };
                     return match msg.to_io().kind() {
                         ErrorKind::AlreadyExists => Err(NetlinkError::FileAlreadyExists),
                         ErrorKind::NotFound => Err(NetlinkError::NotFound),
                         _ => Err(NetlinkError::PayloadError(msg)),
-                    }
+                    };
                 }
                 _ => {}
             }
@@ -469,6 +477,53 @@ fn get_interface_index(ifname: &str) -> NetlinkResult<Option<u32>> {
 
 /// Add a route for an interface.
 pub fn add_route(ifname: &str, address: &IpAddrMask, table: Option<u32>) -> NetlinkResult<()> {
+    let Some(interface_index) = get_interface_index(ifname)? else {
+        error!("Failed to add WireGuard interface route interface {ifname} index not found");
+        return Err(NetlinkError::AddRouteError);
+    };
+
+    let message = direct_route_message(interface_index, address, table);
+    match netlink_request(
+        RouteNetlinkMessage::NewRoute(message),
+        NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL,
+        NETLINK_ROUTE,
+    ) {
+        Ok(_msg) => Ok(()),
+        Err(NetlinkError::FileAlreadyExists) => Ok(()),
+        Err(err) => {
+            error!("Failed to add WireGuard interface route: {err}");
+            Err(NetlinkError::AddRouteError)
+        }
+    }
+}
+
+/// Delete a route for an interface.
+pub fn delete_route(ifname: &str, address: &IpAddrMask, table: Option<u32>) -> NetlinkResult<()> {
+    let Some(interface_index) = get_interface_index(ifname)? else {
+        error!("Failed to delete WireGuard interface route interface {ifname} index not found");
+        return Err(NetlinkError::DeleteRouteError);
+    };
+
+    let message = direct_route_message(interface_index, address, table);
+    match netlink_request(
+        RouteNetlinkMessage::DelRoute(message),
+        NLM_F_REQUEST | NLM_F_ACK,
+        NETLINK_ROUTE,
+    ) {
+        Ok(_msg) => Ok(()),
+        Err(NetlinkError::NoSuchProcessError) => Ok(()),
+        Err(err) => {
+            error!("Failed to delete WireGuard interface route: {err}");
+            Err(NetlinkError::DeleteRouteError)
+        }
+    }
+}
+
+fn direct_route_message(
+    interface_index: u32,
+    address: &IpAddrMask,
+    table: Option<u32>,
+) -> RouteMessage {
     let mut message = RouteMessage::default();
     let mut route_msg_header = RouteHeader {
         table: RouteHeader::RT_TABLE_MAIN,
@@ -484,32 +539,18 @@ pub fn add_route(ifname: &str, address: &IpAddrMask, table: Option<u32>) -> Netl
         IpAddr::V6(ipv6) => RouteAddress::Inet6(ipv6),
     };
     message.header = route_msg_header;
-    if let Some(interface_index) = get_interface_index(ifname)? {
-        message
-            .attributes
-            .push(RouteAttribute::Oif(interface_index));
-        message
-            .attributes
-            .push(RouteAttribute::Destination(route_address));
-        if let Some(table) = table {
-            message.attributes.push(RouteAttribute::Table(table));
-        }
-        match netlink_request(
-            RouteNetlinkMessage::NewRoute(message),
-            NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL,
-            NETLINK_ROUTE,
-        ) {
-            Ok(_msg) => Ok(()),
-            Err(NetlinkError::FileAlreadyExists) => Ok(()),
-            Err(err) => {
-                error!("Failed to add WireGuard interface route: {err}");
-                Err(NetlinkError::AddRouteError)
-            }
-        }
-    } else {
-        error!("Failed to add WireGuard interface route interface {ifname} index not found");
-        Err(NetlinkError::AddRouteError)
+
+    message
+        .attributes
+        .push(RouteAttribute::Oif(interface_index));
+    message
+        .attributes
+        .push(RouteAttribute::Destination(route_address));
+    if let Some(table) = table {
+        message.attributes.push(RouteAttribute::Table(table));
     }
+
+    message
 }
 
 /// Add rule for fwmark.
