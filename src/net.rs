@@ -1,7 +1,7 @@
 //! Network address utilities
 
 use std::{
-    error, fmt,
+    cmp, error, fmt,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
     str::FromStr,
 };
@@ -131,6 +131,21 @@ impl FromStr for IpAddrMask {
                 cidr: if ip.is_ipv4() { 32 } else { 128 },
             })
         }
+    }
+}
+
+impl Ord for IpAddrMask {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        match self.cidr.cmp(&other.cidr) {
+            cmp::Ordering::Equal => self.ip.cmp(&other.ip),
+            c => c.reverse(), // most precise first
+        }
+    }
+}
+
+impl PartialOrd for IpAddrMask {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
