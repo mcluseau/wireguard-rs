@@ -170,7 +170,7 @@ impl FromStr for IpAddrMask {
 impl Ord for IpAddrMask {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         match self.cidr.cmp(&other.cidr) {
-            cmp::Ordering::Equal => self.ip.cmp(&other.ip),
+            cmp::Ordering::Equal => self.address.cmp(&other.address),
             c => c.reverse(), // most precise first
         }
     }
